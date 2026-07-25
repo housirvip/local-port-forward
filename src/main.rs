@@ -20,10 +20,45 @@ async fn main() -> Result<()> {
     let manager = Arc::new(Manager::new(pool.clone(), log_tx.clone()));
     manager.load_from_db().await?;
 
+    // Spawn log cleanup background task (runs every hour)
+    let cleanup_pool = pool.clone();
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(3600));
+        loop {
+            interval.tick().await;
+            // Read settings
+            let Ok(settings) = sqlx::query_as::<_, portforward::models::Settings>(
+                "SELECT log_max_rows, log_ttl_days, default_protocol, default_log_enabled, default_log_body FROM settings WHERE id = 1"
+            ).fetch_one(&cleanup_pool).await else { continue };
+
+            if settings.log_max_rows > 0 {
+                sqlx::query(
+                    "DELETE FROM request_logs WHERE id NOT IN (SELECT id FROM request_logs ORDER BY id DESC LIMIT ?)"
+                )
+                .bind(settings.log_max_rows)
+                .execute(&cleanup_pool)
+                .await
+                .ok();
+            }
+
+            if settings.log_ttl_days > 0 {
+                sqlx::query(
+                    "DELETE FROM request_logs WHERE created_at < datetime('now', ? || ' days')"
+                )
+                .bind(format!("-{}", settings.log_ttl_days))
+                .execute(&cleanup_pool)
+                .await
+                .ok();
+            }
+        }
+    });
+
     let state = server::AppState {
-        db:      pool,
-        manager: manager.clone(),
+        db:          pool,
+        manager:     manager.clone(),
         log_tx,
+        listen_addr: listen_addr.clone(),
+        db_path:     db_path.clone(),
     };
     let app = server::create_router(state);
 

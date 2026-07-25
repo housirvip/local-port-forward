@@ -32,3 +32,14 @@ CREATE TABLE IF NOT EXISTS request_logs (
 
 CREATE INDEX IF NOT EXISTS idx_logs_rule_id    ON request_logs(rule_id);
 CREATE INDEX IF NOT EXISTS idx_logs_created_at ON request_logs(created_at);
+
+CREATE TABLE IF NOT EXISTS settings (
+  id               INTEGER PRIMARY KEY CHECK (id = 1),
+  log_max_rows     INTEGER NOT NULL DEFAULT 10000,
+  log_ttl_days     INTEGER NOT NULL DEFAULT 0,
+  default_protocol TEXT    NOT NULL DEFAULT 'auto',
+  default_log_enabled INTEGER NOT NULL DEFAULT 1,
+  default_log_body    INTEGER NOT NULL DEFAULT 0
+);
+-- Ensure exactly one row exists
+INSERT OR IGNORE INTO settings (id) VALUES (1);

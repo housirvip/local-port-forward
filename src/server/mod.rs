@@ -21,9 +21,11 @@ struct WebAssets;
 
 #[derive(Clone)]
 pub struct AppState {
-    pub db:      SqlitePool,
-    pub manager: Arc<Manager>,
-    pub log_tx:  broadcast::Sender<RequestLog>,
+    pub db:          SqlitePool,
+    pub manager:     Arc<Manager>,
+    pub log_tx:      broadcast::Sender<RequestLog>,
+    pub listen_addr: String,
+    pub db_path:     String,
 }
 
 pub fn create_router(state: AppState) -> Router {
@@ -33,6 +35,7 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/rules/:id/toggle", post(routes::rules::toggle))
         .route("/api/logs",             get(routes::logs::list).delete(routes::logs::clear))
         .route("/api/logs/stream",      get(routes::stream::stream_logs))
+        .route("/api/settings", get(routes::settings::get_settings).put(routes::settings::update_settings))
         .fallback(serve_static)
         .with_state(state)
 }
