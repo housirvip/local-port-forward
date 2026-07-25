@@ -4,8 +4,8 @@
   "version": "0.1.0",
   "identifier": "com.portforward.app",
   "build": {
-    "beforeDevCommand": "npm --prefix frontend install && npm --prefix frontend run build",
-    "beforeBuildCommand": "npm --prefix frontend install && npm --prefix frontend run build",
+    "beforeDevCommand": "npm --prefix ../frontend install && npm --prefix ../frontend run build",
+    "beforeBuildCommand": "npm --prefix ../frontend install && npm --prefix ../frontend run build",
     "frontendDist": "../web"
   },
   "app": {
