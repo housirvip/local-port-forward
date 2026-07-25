@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
 import { logsApi, rulesApi, type RequestLog, type Rule } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -30,6 +31,7 @@ function formatDuration(ms: number) {
 }
 
 export default function LogsPage() {
+  const { t } = useTranslation()
   const [logs, setLogs] = useState<RequestLog[]>([])
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
@@ -81,10 +83,10 @@ export default function LogsPage() {
   }, [liveMode, filterRuleId])
 
   async function handleClear() {
-    if (!confirm('Clear all logs' + (filterRuleId ? ' for this rule' : '') + '?')) return
+    if (!confirm(filterRuleId ? t('confirmClearLogsRule') : t('confirmClearLogs'))) return
     try {
       const res = await logsApi.clear(filterRuleId)
-      toast.success(`Deleted ${res.deleted} log${res.deleted !== 1 ? 's' : ''}`)
+      toast.success(t('toastDeleted', { count: res.deleted }))
       setLogs([])
       setTotal(0)
       setPage(1)
@@ -93,7 +95,9 @@ export default function LogsPage() {
     }
   }
 
-  const ruleName = (id: number) => rules.find(r => r.id === id)?.name || `Rule #${id}`
+  const ruleName = (id: number) => rules.find(r => r.id === id)?.name || t('fallbackRule', { id })
+
+  const totalPages = Math.ceil(total / pageSize)
 
   return (
     <div className="space-y-4">
@@ -104,11 +108,13 @@ export default function LogsPage() {
             value={filterRuleId != null ? String(filterRuleId) : 'all'}
             onValueChange={v => { setFilterRuleId(v === 'all' ? undefined : Number(v)); setPage(1) }}
           >
-            <SelectTrigger><SelectValue placeholder="All rules" /></SelectTrigger>
+            <SelectTrigger><SelectValue placeholder={t('filterAllRules')} /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All rules</SelectItem>
+              <SelectItem value="all">{t('filterAllRules')}</SelectItem>
               {rules.map(r => (
-                <SelectItem key={r.id} value={String(r.id)}>{r.name || `Port ${r.local_port}`}</SelectItem>
+                <SelectItem key={r.id} value={String(r.id)}>
+                  {r.name || t('filterPort', { port: r.local_port })}
+                </SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -116,7 +122,7 @@ export default function LogsPage() {
 
         <div className="flex items-center gap-2">
           <Switch id="live" checked={liveMode} onCheckedChange={(v) => { setLiveMode(v); if (v) setPage(1) }} />
-          <Label htmlFor="live">Live</Label>
+          <Label htmlFor="live">{t('labelLive')}</Label>
           {liveMode && (
             <span className={`inline-flex items-center gap-1 text-xs ${
               liveConnected ? 'text-green-600' : 'text-yellow-500'
@@ -124,26 +130,26 @@ export default function LogsPage() {
               <span className={`w-1.5 h-1.5 rounded-full ${
                 liveConnected ? 'bg-green-500' : 'bg-yellow-400 animate-pulse'
               }`} />
-              {liveConnected ? '实时' : '重连中...'}
+              {liveConnected ? t('statusLive') : t('statusReconnecting')}
             </span>
           )}
         </div>
 
         <Button variant="outline" size="sm" onClick={fetchLogs} disabled={loading}>
           <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-          Refresh
+          {t('btnRefresh')}
         </Button>
 
         <Button variant="outline" size="sm" onClick={handleClear}>
-          <Trash2 className="h-4 w-4 text-red-500" /> Clear Logs
+          <Trash2 className="h-4 w-4 text-red-500" /> {t('btnClearLogs')}
         </Button>
 
-        <span className="ml-auto text-sm text-zinc-500">{total} total</span>
+        <span className="ml-auto text-sm text-zinc-500">{t('totalCount', { count: total })}</span>
       </div>
 
       {logs.length === 0 ? (
         <div className="rounded-lg border border-dashed border-zinc-300 p-12 text-center text-zinc-500">
-          {loading ? 'Loading…' : 'No logs yet. Enable a rule and make some requests.'}
+          {loading ? t('logsLoading') : t('logsEmpty')}
         </div>
       ) : (
         <div className="rounded-lg border border-zinc-200 overflow-hidden">
@@ -151,14 +157,14 @@ export default function LogsPage() {
             <thead className="bg-zinc-50 border-b border-zinc-200">
               <tr>
                 <th className="px-3 py-2.5 text-left font-medium text-zinc-600 w-6"></th>
-                <th className="px-3 py-2.5 text-left font-medium text-zinc-600">Time</th>
-                <th className="px-3 py-2.5 text-left font-medium text-zinc-600">Rule</th>
-                <th className="px-3 py-2.5 text-left font-medium text-zinc-600">Proto</th>
-                <th className="px-3 py-2.5 text-left font-medium text-zinc-600">Method</th>
-                <th className="px-3 py-2.5 text-left font-medium text-zinc-600">Path / Preview</th>
-                <th className="px-3 py-2.5 text-left font-medium text-zinc-600">Status</th>
-                <th className="px-3 py-2.5 text-left font-medium text-zinc-600">Size</th>
-                <th className="px-3 py-2.5 text-left font-medium text-zinc-600">Duration</th>
+                <th className="px-3 py-2.5 text-left font-medium text-zinc-600">{t('colTime')}</th>
+                <th className="px-3 py-2.5 text-left font-medium text-zinc-600">{t('colRule')}</th>
+                <th className="px-3 py-2.5 text-left font-medium text-zinc-600">{t('colProto')}</th>
+                <th className="px-3 py-2.5 text-left font-medium text-zinc-600">{t('colMethod')}</th>
+                <th className="px-3 py-2.5 text-left font-medium text-zinc-600">{t('colPathPreview')}</th>
+                <th className="px-3 py-2.5 text-left font-medium text-zinc-600">{t('colStatus')}</th>
+                <th className="px-3 py-2.5 text-left font-medium text-zinc-600">{t('colSize')}</th>
+                <th className="px-3 py-2.5 text-left font-medium text-zinc-600">{t('colDuration')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-100">
@@ -214,9 +220,9 @@ export default function LogsPage() {
       {/* Pagination */}
       {!liveMode && total > pageSize && (
         <div className="flex items-center justify-end gap-2 text-sm">
-          <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage(p => p - 1)}>Prev</Button>
-          <span className="text-zinc-500">Page {page} of {Math.ceil(total / pageSize)}</span>
-          <Button variant="outline" size="sm" disabled={page >= Math.ceil(total / pageSize)} onClick={() => setPage(p => p + 1)}>Next</Button>
+          <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage(p => p - 1)}>{t('btnPrev')}</Button>
+          <span className="text-zinc-500">{t('pageOf', { page, total: totalPages })}</span>
+          <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}>{t('btnNext')}</Button>
         </div>
       )}
     </div>
@@ -224,6 +230,8 @@ export default function LogsPage() {
 }
 
 function LogDetail({ log }: { log: RequestLog }) {
+  const { t } = useTranslation()
+
   function prettyJSON(s?: string | null) {
     if (!s) return null
     try { return JSON.stringify(JSON.parse(s), null, 2) } catch { return s }
@@ -232,9 +240,9 @@ function LogDetail({ log }: { log: RequestLog }) {
   if (log.protocol === 'tcp') {
     return (
       <div>
-        <p className="text-xs font-semibold text-zinc-500 mb-1">TCP Preview</p>
+        <p className="text-xs font-semibold text-zinc-500 mb-1">{t('tcpPreview')}</p>
         <pre className="text-xs bg-white rounded border border-zinc-200 p-3 max-h-[300px] overflow-y-auto whitespace-pre-wrap break-all">
-          {log.tcp_preview || '(no preview captured)'}
+          {log.tcp_preview || t('noPreview')}
         </pre>
       </div>
     )
@@ -242,20 +250,21 @@ function LogDetail({ log }: { log: RequestLog }) {
 
   return (
     <div className="grid grid-cols-2 gap-4">
-      <Section title="Request Headers" content={prettyJSON(log.http_req_headers)} />
-      <Section title="Response Headers" content={prettyJSON(log.http_resp_headers)} />
-      <Section title="Request Body" content={log.http_req_body} />
-      <Section title="Response Body" content={log.http_resp_body} />
+      <Section title={t('reqHeaders')} content={prettyJSON(log.http_req_headers)} />
+      <Section title={t('respHeaders')} content={prettyJSON(log.http_resp_headers)} />
+      <Section title={t('reqBody')} content={log.http_req_body} />
+      <Section title={t('respBody')} content={log.http_resp_body} />
     </div>
   )
 }
 
 function Section({ title, content }: { title: string; content?: string | null }) {
+  const { t } = useTranslation()
   return (
     <div>
       <p className="text-xs font-semibold text-zinc-500 mb-1">{title}</p>
       <pre className="text-xs bg-white rounded border border-zinc-200 p-3 max-h-[300px] overflow-y-auto whitespace-pre-wrap break-all">
-        {content || <span className="text-zinc-400">(empty)</span>}
+        {content || <span className="text-zinc-400">{t('sectionEmpty')}</span>}
       </pre>
     </div>
   )

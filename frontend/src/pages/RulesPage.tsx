@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import { rulesApi, type Rule } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -29,13 +30,14 @@ function ConfirmDialog({ open, title, onConfirm, onCancel }: {
   open: boolean; title: string;
   onConfirm: () => void; onCancel: () => void;
 }) {
+  const { t } = useTranslation()
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) onCancel() }}>
       <DialogContent className="max-w-sm">
         <DialogHeader><DialogTitle>{title}</DialogTitle></DialogHeader>
         <div className="flex justify-end gap-2 mt-4">
-          <Button variant="outline" onClick={onCancel}>取消</Button>
-          <Button variant="destructive" onClick={onConfirm}>确认删除</Button>
+          <Button variant="outline" onClick={onCancel}>{t('btnCancel')}</Button>
+          <Button variant="destructive" onClick={onConfirm}>{t('btnConfirmDelete')}</Button>
         </div>
       </DialogContent>
     </Dialog>
@@ -43,6 +45,7 @@ function ConfirmDialog({ open, title, onConfirm, onCancel }: {
 }
 
 export default function RulesPage() {
+  const { t } = useTranslation()
   const [rules, setRules] = useState<Rule[]>([])
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editing, setEditing] = useState<Rule | null>(null)
@@ -77,19 +80,19 @@ export default function RulesPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (form.local_port < 1 || form.local_port > 65535) { toast.error('Local port must be 1–65535'); return }
-    if (!form.remote_host.trim()) { toast.error('Remote host is required'); return }
-    if (form.remote_port < 1 || form.remote_port > 65535) { toast.error('Remote port must be 1–65535'); return }
+    if (form.local_port < 1 || form.local_port > 65535) { toast.error(t('errLocalPort')); return }
+    if (!form.remote_host.trim()) { toast.error(t('errRemoteHost')); return }
+    if (form.remote_port < 1 || form.remote_port > 65535) { toast.error(t('errRemotePort')); return }
     setSaving(true)
     try {
       if (editing) {
         const updated = await rulesApi.update(editing.id, form)
         setRules(rs => rs.map(r => r.id === updated.id ? updated : r))
-        toast.success('Rule updated')
+        toast.success(t('toastRuleUpdated'))
       } else {
         const created = await rulesApi.create(form)
         setRules(rs => [...rs, created])
-        toast.success('Rule created')
+        toast.success(t('toastRuleCreated'))
       }
       setDialogOpen(false)
     } catch (e: unknown) {
@@ -107,7 +110,7 @@ export default function RulesPage() {
     try {
       await rulesApi.delete(rule.id)
       setRules(rs => rs.filter(r => r.id !== rule.id))
-      toast.success('Rule deleted')
+      toast.success(t('toastRuleDeleted'))
     } catch (e: unknown) {
       toast.error((e as Error).message)
     } finally {
@@ -131,48 +134,48 @@ export default function RulesPage() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-xl font-semibold">Port Forwarding Rules</h2>
+        <h2 className="text-xl font-semibold">{t('rulesHeading')}</h2>
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogTrigger asChild>
             <Button onClick={openAdd} size="sm">
-              <Plus className="h-4 w-4" /> Add Rule
+              <Plus className="h-4 w-4" /> {t('btnAddRule')}
             </Button>
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>{editing ? 'Edit Rule' : 'Add Rule'}</DialogTitle>
+              <DialogTitle>{t(editing ? 'dialogEditTitle' : 'dialogAddTitle')}</DialogTitle>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4 mt-2">
               <div className="space-y-1">
-                <Label>Name</Label>
-                <Input placeholder="My service" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
+                <Label>{t('fieldName')}</Label>
+                <Input placeholder={t('placeholderName')} value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
-                  <Label>Local Port</Label>
+                  <Label>{t('fieldLocalPort')}</Label>
                   <Input type="number" min={1} max={65535} value={form.local_port}
                     onChange={e => setForm(f => ({ ...f, local_port: Number(e.target.value) }))} />
                 </div>
                 <div className="space-y-1">
-                  <Label>Protocol</Label>
+                  <Label>{t('fieldProtocol')}</Label>
                   <Select value={form.protocol} onValueChange={v => setForm(f => ({ ...f, protocol: v as Rule['protocol'] }))}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="auto">Auto Detect</SelectItem>
-                      <SelectItem value="http">HTTP</SelectItem>
-                      <SelectItem value="tcp">TCP</SelectItem>
+                      <SelectItem value="auto">{t('optAuto')}</SelectItem>
+                      <SelectItem value="http">{t('optHttp')}</SelectItem>
+                      <SelectItem value="tcp">{t('optTcp')}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
-                  <Label>Remote Host</Label>
-                  <Input placeholder="192.168.1.10" value={form.remote_host}
+                  <Label>{t('fieldRemoteHost')}</Label>
+                  <Input placeholder={t('placeholderRemoteHost')} value={form.remote_host}
                     onChange={e => setForm(f => ({ ...f, remote_host: e.target.value }))} />
                 </div>
                 <div className="space-y-1">
-                  <Label>Remote Port</Label>
+                  <Label>{t('fieldRemotePort')}</Label>
                   <Input type="number" min={1} max={65535} value={form.remote_port}
                     onChange={e => setForm(f => ({ ...f, remote_port: Number(e.target.value) }))} />
                 </div>
@@ -180,20 +183,22 @@ export default function RulesPage() {
               <div className="flex gap-6">
                 <div className="flex items-center gap-2">
                   <Switch checked={form.enabled} onCheckedChange={v => setForm(f => ({ ...f, enabled: v }))} id="sw-enabled" />
-                  <Label htmlFor="sw-enabled">Enabled</Label>
+                  <Label htmlFor="sw-enabled">{t('fieldEnabled')}</Label>
                 </div>
                 <div className="flex items-center gap-2">
                   <Switch checked={form.log_enabled} onCheckedChange={v => setForm(f => ({ ...f, log_enabled: v }))} id="sw-log" />
-                  <Label htmlFor="sw-log">Log Traffic</Label>
+                  <Label htmlFor="sw-log">{t('fieldLogTraffic')}</Label>
                 </div>
                 <div className="flex items-center gap-2">
                   <Switch checked={form.log_body} onCheckedChange={v => setForm(f => ({ ...f, log_body: v }))} id="sw-body" />
-                  <Label htmlFor="sw-body">Log Body</Label>
+                  <Label htmlFor="sw-body">{t('fieldLogBody')}</Label>
                 </div>
               </div>
               <div className="flex justify-end gap-2 pt-2">
-                <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
-                <Button type="submit" disabled={saving}>{saving ? 'Saving…' : editing ? 'Update' : 'Create'}</Button>
+                <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>{t('btnCancel')}</Button>
+                <Button type="submit" disabled={saving}>
+                  {saving ? t('btnSaving') : editing ? t('btnUpdate') : t('btnCreate')}
+                </Button>
               </div>
             </form>
           </DialogContent>
@@ -202,19 +207,19 @@ export default function RulesPage() {
 
       {rules.length === 0 ? (
         <div className="rounded-lg border border-dashed border-zinc-300 p-12 text-center text-zinc-500">
-          No rules yet. Click "Add Rule" to get started.
+          {t('emptyRules')}
         </div>
       ) : (
         <div className="rounded-lg border border-zinc-200 overflow-hidden">
           <table className="w-full text-sm">
             <thead className="bg-zinc-50 border-b border-zinc-200">
               <tr>
-                <th className="px-4 py-2.5 text-left font-medium text-zinc-600">Name</th>
-                <th className="px-4 py-2.5 text-left font-medium text-zinc-600">Forwarding</th>
-                <th className="px-4 py-2.5 text-left font-medium text-zinc-600">Protocol</th>
-                <th className="px-4 py-2.5 text-left font-medium text-zinc-600">Enabled</th>
-                <th className="px-4 py-2.5 text-left font-medium text-zinc-600">Log</th>
-                <th className="px-4 py-2.5 text-right font-medium text-zinc-600">Actions</th>
+                <th className="px-4 py-2.5 text-left font-medium text-zinc-600">{t('colName')}</th>
+                <th className="px-4 py-2.5 text-left font-medium text-zinc-600">{t('colForwarding')}</th>
+                <th className="px-4 py-2.5 text-left font-medium text-zinc-600">{t('colProtocol')}</th>
+                <th className="px-4 py-2.5 text-left font-medium text-zinc-600">{t('colEnabled')}</th>
+                <th className="px-4 py-2.5 text-left font-medium text-zinc-600">{t('colLog')}</th>
+                <th className="px-4 py-2.5 text-right font-medium text-zinc-600">{t('colActions')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-100">
@@ -237,7 +242,7 @@ export default function RulesPage() {
                     <Switch checked={rule.enabled} onCheckedChange={() => handleToggle(rule)} />
                   </td>
                   <td className="px-4 py-3 text-zinc-500 text-xs">
-                    {rule.log_enabled ? (rule.log_body ? 'body' : 'headers') : 'off'}
+                    {rule.log_enabled ? (rule.log_body ? t('logStatusBody') : t('logStatusHeaders')) : t('logStatusOff')}
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex justify-end gap-1">
@@ -258,7 +263,7 @@ export default function RulesPage() {
       {confirmState && (
         <ConfirmDialog
           open
-          title={`确认删除规则 "${confirmState.rule.name || confirmState.rule.local_port}"?`}
+          title={t('confirmDeleteTitle', { name: confirmState.rule.name || confirmState.rule.local_port })}
           onConfirm={() => doDelete(confirmState.rule)}
           onCancel={() => setConfirmState(null)}
         />
