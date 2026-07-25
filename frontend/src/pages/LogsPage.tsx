@@ -36,6 +36,7 @@ export default function LogsPage() {
   const pageSize = 50
   const [filterRuleId, setFilterRuleId] = useState<number | undefined>()
   const [liveMode, setLiveMode] = useState(true)
+  const [liveConnected, setLiveConnected] = useState(false)
   const [expandedId, setExpandedId] = useState<number | null>(null)
   const [rules, setRules] = useState<Rule[]>([])
   const [loading, setLoading] = useState(false)
@@ -74,8 +75,9 @@ export default function LogsPage() {
         setTotal(t => t + 1)
       } catch { /* ignore parse errors */ }
     }
-    es.onerror = () => { /* SSE reconnects automatically */ }
-    return () => { es.close(); esRef.current = null }
+    es.onopen = () => setLiveConnected(true)
+    es.onerror = () => setLiveConnected(false)
+    return () => { es.close(); esRef.current = null; setLiveConnected(false) }
   }, [liveMode, filterRuleId])
 
   async function handleClear() {
@@ -113,8 +115,18 @@ export default function LogsPage() {
         </div>
 
         <div className="flex items-center gap-2">
-          <Switch id="live" checked={liveMode} onCheckedChange={setLiveMode} />
+          <Switch id="live" checked={liveMode} onCheckedChange={(v) => { setLiveMode(v); if (v) setPage(1) }} />
           <Label htmlFor="live">Live</Label>
+          {liveMode && (
+            <span className={`inline-flex items-center gap-1 text-xs ${
+              liveConnected ? 'text-green-600' : 'text-yellow-500'
+            }`}>
+              <span className={`w-1.5 h-1.5 rounded-full ${
+                liveConnected ? 'bg-green-500' : 'bg-yellow-400 animate-pulse'
+              }`} />
+              {liveConnected ? '实时' : '重连中...'}
+            </span>
+          )}
         </div>
 
         <Button variant="outline" size="sm" onClick={fetchLogs} disabled={loading}>

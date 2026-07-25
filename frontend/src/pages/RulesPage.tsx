@@ -25,12 +25,30 @@ const emptyForm = (): Omit<Rule, 'id' | 'created_at' | 'updated_at'> => ({
   log_body: false,
 })
 
+function ConfirmDialog({ open, title, onConfirm, onCancel }: {
+  open: boolean; title: string;
+  onConfirm: () => void; onCancel: () => void;
+}) {
+  return (
+    <Dialog open={open} onOpenChange={(v) => { if (!v) onCancel() }}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader><DialogTitle>{title}</DialogTitle></DialogHeader>
+        <div className="flex justify-end gap-2 mt-4">
+          <Button variant="outline" onClick={onCancel}>取消</Button>
+          <Button variant="destructive" onClick={onConfirm}>确认删除</Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 export default function RulesPage() {
   const [rules, setRules] = useState<Rule[]>([])
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editing, setEditing] = useState<Rule | null>(null)
   const [form, setForm] = useState(emptyForm())
   const [saving, setSaving] = useState(false)
+  const [confirmState, setConfirmState] = useState<{ rule: Rule } | null>(null)
 
   const load = () => rulesApi.list().then(setRules).catch(e => toast.error(e.message))
 
@@ -81,14 +99,19 @@ export default function RulesPage() {
     }
   }
 
-  async function handleDelete(rule: Rule) {
-    if (!confirm(`Delete rule "${rule.name || rule.local_port}"?`)) return
+  function handleDelete(rule: Rule) {
+    setConfirmState({ rule })
+  }
+
+  async function doDelete(rule: Rule) {
     try {
       await rulesApi.delete(rule.id)
       setRules(rs => rs.filter(r => r.id !== rule.id))
       toast.success('Rule deleted')
     } catch (e: unknown) {
       toast.error((e as Error).message)
+    } finally {
+      setConfirmState(null)
     }
   }
 
@@ -231,6 +254,14 @@ export default function RulesPage() {
             </tbody>
           </table>
         </div>
+      )}
+      {confirmState && (
+        <ConfirmDialog
+          open
+          title={`确认删除规则 "${confirmState.rule.name || confirmState.rule.local_port}"?`}
+          onConfirm={() => doDelete(confirmState.rule)}
+          onCancel={() => setConfirmState(null)}
+        />
       )}
     </div>
   )
