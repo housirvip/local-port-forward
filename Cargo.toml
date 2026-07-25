@@ -1,0 +1,33 @@
+[package]
+name = "portforward"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "portforward"
+path = "src/main.rs"
+
+[dependencies]
+tokio              = { version = "1",    features = ["full"] }
+axum               = { version = "0.7",  features = ["macros"] }
+tower-http         = { version = "0.5",  features = ["cors"] }
+hyper              = { version = "1",    features = ["http1", "server"] }
+hyper-util         = { version = "0.1",  features = ["tokio", "client", "client-legacy", "http1"] }
+http-body-util     = "0.1"
+sqlx               = { version = "0.7",  features = ["sqlite", "runtime-tokio-rustls", "chrono", "macros"] }
+serde              = { version = "1",    features = ["derive"] }
+serde_json         = "1"
+chrono             = { version = "0.4",  features = ["serde"] }
+tokio-stream       = { version = "0.1",  features = ["sync"] }
+bytes              = "1"
+anyhow             = "1"
+tracing            = "0.1"
+tracing-subscriber = { version = "0.3",  features = ["env-filter"] }
+rust-embed         = "8"
+mime_guess         = "2"
+tokio-util         = { version = "0.7",  features = ["io"] }
+futures            = "0.3"
+
+[profile.release]
+opt-level = 3
+lto       = true
