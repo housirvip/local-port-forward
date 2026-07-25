@@ -3,13 +3,13 @@ use sqlx::{
     sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions},
     SqlitePool,
 };
-use std::str::FromStr;
 use std::time::Duration;
 
 const MIGRATION_001: &str = include_str!("migrations/001_init.sql");
 
 pub async fn open(path: &str) -> Result<SqlitePool> {
-    let opts = SqliteConnectOptions::from_str(&format!("sqlite:{path}"))?
+    let opts = SqliteConnectOptions::new()
+        .filename(path)
         .journal_mode(SqliteJournalMode::Wal)
         .foreign_keys(true)
         .create_if_missing(true)
