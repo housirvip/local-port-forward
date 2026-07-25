@@ -89,3 +89,27 @@ export const logsApi = {
 
   stream: () => new EventSource(`${BASE}/logs/stream`),
 }
+
+export interface AppSettings {
+  log_max_rows:        number
+  log_ttl_days:        number
+  default_protocol:    'auto' | 'http' | 'tcp'
+  default_log_enabled: boolean
+  default_log_body:    boolean
+  listen_addr:         string
+  db_path:             string
+}
+
+export type SettingsInput = Omit<AppSettings, 'listen_addr' | 'db_path'>
+
+export const settingsApi = {
+  get: (): Promise<AppSettings> =>
+    fetch(`${BASE}/settings`).then(r => handleResponse<AppSettings>(r)),
+
+  update: (data: Partial<SettingsInput>): Promise<AppSettings> =>
+    fetch(`${BASE}/settings`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    }).then(r => handleResponse<AppSettings>(r)),
+}

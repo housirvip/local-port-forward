@@ -1,6 +1,7 @@
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import RulesPage from '@/pages/RulesPage'
 import LogsPage from '@/pages/LogsPage'
+import SettingsPage from '@/pages/SettingsPage'
 import { Toaster } from 'sonner'
 import { Network } from 'lucide-react'
 
@@ -19,9 +20,11 @@ export default function App() {
           <TabsList className="mb-4">
             <TabsTrigger value="rules">Rules</TabsTrigger>
             <TabsTrigger value="logs">Logs</TabsTrigger>
+            <TabsTrigger value="settings">系统设置</TabsTrigger>
           </TabsList>
           <TabsContent value="rules"><RulesPage /></TabsContent>
           <TabsContent value="logs"><LogsPage /></TabsContent>
+          <TabsContent value="settings"><SettingsPage /></TabsContent>
         </Tabs>
       </main>
     </div>
