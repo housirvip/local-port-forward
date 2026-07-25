@@ -1,7 +1,6 @@
 # ── Rust build artifacts ──────────────────────────────────────────────────────
 /target/
-Cargo.lock          # binary crate: commit if you want reproducible releases
-                    # remove this line if you want to track lockfile
+# Cargo.lock is committed: project ships binaries (portforward CLI + desktop app)
 
 # ── Node / frontend ───────────────────────────────────────────────────────────
 frontend/node_modules/
@@ -11,6 +10,9 @@ frontend/.vite/
 
 # ── Vite output (embedded by rust-embed) ─────────────────────────────────────
 /web/
+
+# ── Tauri generated files (auto-created by tauri-build at compile time) ───────
+src-tauri/gen/
 
 # ── SQLite databases ──────────────────────────────────────────────────────────
 *.db
@@ -36,5 +38,9 @@ Thumbs.db
 .env.*
 !.env.example
 
-# ── Logs ─────────────────────────────────────────────────────────────────────
+# ── Logs ──────────────────────────────────────────────────────────────────────
 *.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
