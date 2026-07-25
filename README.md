@@ -1,8 +1,16 @@
 # Port Forward Manager
 
+**[中文文档](README_zh.md)**
+
 A local port-forwarding tool with a web UI and desktop app.  
 Bind a local port → forward all TCP connections to a configurable remote host:port.  
 HTTP traffic is automatically detected and reverse-proxied with full request/response logging.
+
+## Screenshots
+
+![Rules Page](static/pic1.png)
+
+![Logs Page](static/pic2.png)
 
 ## Features
 
@@ -13,6 +21,7 @@ HTTP traffic is automatically detected and reverse-proxied with full request/res
 - **Log viewer** — paginated request log table with per-rule filter, live SSE streaming mode, and expandable detail rows
 - **Settings** — configure log retention (max rows + TTL days) and per-rule defaults from the UI
 - **Desktop app** — native window on macOS / Windows / Linux via Tauri v2 (embedded server, no separate process)
+- **i18n** — UI available in English and Chinese; language preference persisted in localStorage
 
 ## Architecture
 
