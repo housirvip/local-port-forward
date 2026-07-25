@@ -1,4 +1,4 @@
-.PHONY: dev dev-frontend dev-backend build frontend backend clean
+.PHONY: dev dev-frontend dev-backend build frontend backend clean desktop-dev desktop-build
 
 frontend:
 	cd frontend && npm install && npm run build
@@ -23,3 +23,11 @@ dev-backend:
 clean:
 	rm -rf web dev.db
 	cargo clean
+
+# Desktop app targets (requires: cargo install tauri-cli --version '^2' --locked)
+# Linux also requires: sudo apt-get install libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf build-essential libssl-dev
+desktop-dev:
+	cargo tauri dev
+
+desktop-build:
+	cargo tauri build
