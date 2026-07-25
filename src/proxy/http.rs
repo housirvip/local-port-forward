@@ -6,7 +6,6 @@ use hyper::server::conn::http1;
 use hyper::service::service_fn;
 use hyper_util::client::legacy::{connect::HttpConnector, Client};
 use hyper_util::rt::{TokioExecutor, TokioIo};
-use serde_json::{Map, Value};
 use sqlx::SqlitePool;
 use std::sync::Arc;
 use std::time::Instant;
@@ -25,6 +24,8 @@ pub async fn handle_http_conn(
     src_addr: String,
     db: SqlitePool,
 ) {
+    let client: Arc<Client<HttpConnector, Full<Bytes>>> =
+        Arc::new(Client::builder(TokioExecutor::new()).build(HttpConnector::new()));
     let io = TokioIo::new(conn);
 
     let svc = service_fn(move |req: Request<Incoming>| {
@@ -32,7 +33,8 @@ pub async fn handle_http_conn(
         let log_tx = log_tx.clone();
         let src_addr = src_addr.clone();
         let db = db.clone();
-        async move { forward(req, target_base, log_body, log_tx, rule_id, src_addr, db).await }
+        let client = client.clone();
+        async move { forward(req, client, target_base, log_body, log_tx, rule_id, src_addr, db).await }
     });
 
     if let Err(e) = http1::Builder::new()
@@ -44,8 +46,10 @@ pub async fn handle_http_conn(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn forward(
     req: Request<Incoming>,
+    client: Arc<Client<HttpConnector, Full<Bytes>>>,
     target_base: Arc<String>,
     log_body: bool,
     log_tx: broadcast::Sender<RequestLog>,
@@ -115,8 +119,6 @@ async fn forward(
         .unwrap();
 
     // Execute upstream request.
-    let client: Client<HttpConnector, Full<Bytes>> =
-        Client::builder(TokioExecutor::new()).build(HttpConnector::new());
 
     let (http_status, resp_headers_json, resp_body_str, resp_body_bytes, resp_headers) =
         match client.request(upstream_req).await {
@@ -148,23 +150,21 @@ async fn forward(
     let bytes_transferred = req_body_bytes_len + resp_body_bytes.len() as i64;
 
     // Insert log row and broadcast.
-    let log_entry = insert_log(
-        &db,
+    let log_entry = insert_log(&db, InsertLog {
         rule_id,
-        &src_addr,
-        "http",
-        Some(&method.to_string()),
-        Some(&path),
-        Some(http_status),
-        Some(&req_headers_json),
-        req_body_str.as_deref(),
-        Some(&resp_headers_json),
-        resp_body_str.as_deref(),
-        None,
+        src_addr: &src_addr,
+        protocol: "http",
+        http_method: Some(&method.to_string()),
+        http_path: Some(&path),
+        http_status: Some(http_status),
+        http_req_headers: Some(&req_headers_json),
+        http_req_body: req_body_str.as_deref(),
+        http_resp_headers: Some(&resp_headers_json),
+        http_resp_body: resp_body_str.as_deref(),
+        tcp_preview: None,
         bytes_transferred,
         duration_ms,
-    )
-    .await;
+    }).await;
 
     if let Ok(entry) = log_entry {
         log_tx.send(entry).ok();
@@ -191,31 +191,39 @@ fn error_response(status: u16, msg: &'static str) -> Response<Full<Bytes>> {
 }
 
 fn headers_to_json(headers: &HeaderMap) -> String {
-    let mut map = Map::new();
+    let mut map: std::collections::HashMap<String, Vec<String>> = std::collections::HashMap::new();
     for (k, v) in headers.iter() {
         if let Ok(val) = v.to_str() {
-            map.insert(k.as_str().to_string(), Value::String(val.to_string()));
+            map.entry(k.as_str().to_string())
+               .or_default()
+               .push(val.to_string());
         }
     }
-    serde_json::to_string(&map).unwrap_or_else(|_| "{}".to_string())
+    let obj: serde_json::Map<String, serde_json::Value> = map.into_iter()
+        .map(|(k, vs)| (k, serde_json::Value::String(vs.join(", "))))
+        .collect();
+    serde_json::to_string(&obj).unwrap_or_else(|_| "{}".to_string())
 }
 
-#[allow(clippy::too_many_arguments)]
+struct InsertLog<'a> {
+    rule_id:           i64,
+    src_addr:          &'a str,
+    protocol:          &'a str,
+    http_method:       Option<&'a str>,
+    http_path:         Option<&'a str>,
+    http_status:       Option<i32>,
+    http_req_headers:  Option<&'a str>,
+    http_req_body:     Option<&'a str>,
+    http_resp_headers: Option<&'a str>,
+    http_resp_body:    Option<&'a str>,
+    tcp_preview:       Option<&'a str>,
+    bytes_transferred: i64,
+    duration_ms:       i64,
+}
+
 async fn insert_log(
     db: &SqlitePool,
-    rule_id: i64,
-    src_addr: &str,
-    protocol: &str,
-    http_method: Option<&str>,
-    http_path: Option<&str>,
-    http_status: Option<i32>,
-    http_req_headers: Option<&str>,
-    http_req_body: Option<&str>,
-    http_resp_headers: Option<&str>,
-    http_resp_body: Option<&str>,
-    tcp_preview: Option<&str>,
-    bytes_transferred: i64,
-    duration_ms: i64,
+    log: InsertLog<'_>,
 ) -> Result<RequestLog> {
     let row = sqlx::query_as::<_, RequestLog>(
         r#"INSERT INTO request_logs
@@ -225,19 +233,19 @@ async fn insert_log(
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
            RETURNING *"#,
     )
-    .bind(rule_id)
-    .bind(src_addr)
-    .bind(protocol)
-    .bind(http_method)
-    .bind(http_path)
-    .bind(http_status)
-    .bind(http_req_headers)
-    .bind(http_req_body)
-    .bind(http_resp_headers)
-    .bind(http_resp_body)
-    .bind(tcp_preview)
-    .bind(bytes_transferred)
-    .bind(duration_ms)
+    .bind(log.rule_id)
+    .bind(log.src_addr)
+    .bind(log.protocol)
+    .bind(log.http_method)
+    .bind(log.http_path)
+    .bind(log.http_status)
+    .bind(log.http_req_headers)
+    .bind(log.http_req_body)
+    .bind(log.http_resp_headers)
+    .bind(log.http_resp_body)
+    .bind(log.tcp_preview)
+    .bind(log.bytes_transferred)
+    .bind(log.duration_ms)
     .fetch_one(db)
     .await?;
     Ok(row)
