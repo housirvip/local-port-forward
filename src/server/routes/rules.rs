@@ -7,6 +7,7 @@ use axum::{
 use chrono::Utc;
 use serde::Deserialize;
 use serde_json::json;
+use tokio::net::TcpListener;
 
 use crate::models::Rule;
 use crate::server::AppState;
@@ -23,17 +24,23 @@ pub struct RuleInput {
     pub log_body:    Option<bool>,
 }
 
-fn validate(input: &RuleInput) -> Option<String> {
+fn validate(input: &RuleInput) -> Result<(), String> {
     if !(1..=65535).contains(&input.local_port) {
-        return Some(format!("local_port {} out of range", input.local_port));
+        return Err(format!("local_port {} out of range", input.local_port));
+    }
+    if (1..1024).contains(&input.local_port) {
+        return Err(format!(
+            "Port {} is a privileged port (< 1024). It may require root/admin privileges.",
+            input.local_port
+        ));
     }
     if !(1..=65535).contains(&input.remote_port) {
-        return Some(format!("remote_port {} out of range", input.remote_port));
+        return Err(format!("remote_port {} out of range", input.remote_port));
     }
     if input.remote_host.trim().is_empty() {
-        return Some("remote_host is required".to_string());
+        return Err("remote_host is required".to_string());
     }
-    None
+    Ok(())
 }
 
 pub async fn list(State(state): State<AppState>) -> impl IntoResponse {
@@ -54,7 +61,7 @@ pub async fn create(
     State(state): State<AppState>,
     Json(input): Json<RuleInput>,
 ) -> impl IntoResponse {
-    if let Some(msg) = validate(&input) {
+    if let Err(msg) = validate(&input) {
         return (StatusCode::BAD_REQUEST, Json(json!({"error": msg}))).into_response();
     }
 
@@ -63,6 +70,26 @@ pub async fn create(
     let enabled     = input.enabled.unwrap_or(true);
     let log_enabled = input.log_enabled.unwrap_or(true);
     let log_body    = input.log_body.unwrap_or(false);
+
+    let listener = if enabled {
+        let addr = format!("0.0.0.0:{}", input.local_port);
+        match TcpListener::bind(&addr).await {
+            Ok(l) => Some(l),
+            Err(e) => {
+                let msg = e.to_string();
+                let hint = if msg.contains("Permission denied") || msg.contains("permission denied") {
+                    format!("Port {} requires elevated privileges. Try a port above 1024.", input.local_port)
+                } else if input.local_port < 1024 {
+                    format!("Port {} is a privileged port, please modify settings or run as root.", input.local_port)
+                } else {
+                    format!("Port {} is already in use: {}", input.local_port, msg)
+                };
+                return (StatusCode::CONFLICT, Json(json!({"error": hint}))).into_response();
+            }
+        }
+    } else {
+        None
+    };
 
     let result = sqlx::query_as::<_, Rule>(
         r#"INSERT INTO rules (name, local_port, remote_host, remote_port, protocol, enabled, log_enabled, log_body)
@@ -82,17 +109,9 @@ pub async fn create(
 
     match result {
         Ok(rule) => {
-            if rule.enabled {
-                if let Err(e) = state.manager.start(rule.clone()).await {
-                    let msg = e.to_string();
-                    if msg.contains("address already in use") || msg.contains("already in use") {
-                        return (
-                            StatusCode::CONFLICT,
-                            Json(json!({"error": format!("port already in use: {}", rule.local_port)})),
-                        )
-                            .into_response();
-                    }
-                    tracing::warn!("failed to start listener: {msg}");
+            if let Some(listener) = listener {
+                if let Err(e) = state.manager.start_with_listener(rule.clone(), listener).await {
+                    tracing::warn!("failed to start listener: {e}");
                 }
             }
             (StatusCode::CREATED, Json(rule)).into_response()
@@ -129,7 +148,7 @@ pub async fn update(
         }
     };
 
-    if let Some(msg) = validate(&input) {
+    if let Err(msg) = validate(&input) {
         return (StatusCode::BAD_REQUEST, Json(json!({"error": msg}))).into_response();
     }
 
@@ -196,29 +215,17 @@ pub async fn delete_rule(
     State(state): State<AppState>,
     Path(id): Path<i64>,
 ) -> impl IntoResponse {
-    // Fetch the rule first to get the local_port for stopping.
-    let rule = match sqlx::query_as::<_, Rule>("SELECT * FROM rules WHERE id = ?")
+    let result = sqlx::query_as::<_, Rule>("DELETE FROM rules WHERE id = ? RETURNING *")
         .bind(id)
         .fetch_optional(&state.db)
-        .await
-    {
-        Ok(Some(r)) => r,
-        Ok(None) => return (StatusCode::NOT_FOUND, Json(json!({"error": "not found"}))).into_response(),
-        Err(e) => {
-            return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": e.to_string()}))).into_response()
-        }
-    };
-
-    state.manager.stop(rule.local_port).await.ok();
-
-    let res = sqlx::query("DELETE FROM rules WHERE id = ?")
-        .bind(id)
-        .execute(&state.db)
         .await;
 
-    match res {
-        Ok(r) if r.rows_affected() > 0 => StatusCode::NO_CONTENT.into_response(),
-        Ok(_) => (StatusCode::NOT_FOUND, Json(json!({"error": "not found"}))).into_response(),
+    match result {
+        Ok(Some(rule)) => {
+            state.manager.stop(rule.local_port).await.ok();
+            StatusCode::NO_CONTENT.into_response()
+        }
+        Ok(None) => (StatusCode::NOT_FOUND, Json(json!({"error": "not found"}))).into_response(),
         Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": e.to_string()}))).into_response(),
     }
 }

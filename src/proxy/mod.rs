@@ -3,13 +3,13 @@ pub mod sniffer;
 pub mod tcp;
 
 use std::collections::HashMap;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
 use anyhow::{anyhow, Result};
 use sqlx::SqlitePool;
 use tokio::net::TcpListener;
-use tokio::sync::{broadcast, Mutex};
+use tokio::sync::broadcast;
 use tokio_util::sync::CancellationToken;
 
 use crate::models::{RequestLog, Rule};
@@ -56,10 +56,14 @@ impl Manager {
         let listener = TcpListener::bind(&addr).await.map_err(|e| {
             anyhow!("bind {addr}: {e}")
         })?;
+        self.start_with_listener(rule, listener).await
+    }
 
+    /// Register an already-bound listener and spawn an accept loop.
+    pub async fn start_with_listener(&self, rule: Rule, listener: TcpListener) -> Result<()> {
         let cancel = CancellationToken::new();
         {
-            let mut map = self.listeners.lock().await;
+            let mut map = self.listeners.lock().unwrap();
             // Stop any previous listener on this port.
             if let Some(old) = map.remove(&rule.local_port) {
                 old.cancel.cancel();
@@ -75,7 +79,7 @@ impl Manager {
 
     /// Cancel the listener for local_port.
     pub async fn stop(&self, local_port: i32) -> Result<()> {
-        let mut map = self.listeners.lock().await;
+        let mut map = self.listeners.lock().unwrap();
         if let Some(handle) = map.remove(&local_port) {
             handle.cancel.cancel();
         }
@@ -90,7 +94,7 @@ impl Manager {
 
     /// Cancel all running listeners (called on shutdown).
     pub async fn stop_all(&self) {
-        let mut map = self.listeners.lock().await;
+        let mut map = self.listeners.lock().unwrap();
         for (_, handle) in map.drain() {
             handle.cancel.cancel();
         }
