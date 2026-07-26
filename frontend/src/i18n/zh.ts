@@ -49,6 +49,9 @@ const zh = {
   errLocalPort: '本地端口须在 1–65535 之间',
   errRemoteHost: '请填写远程主机',
   errRemotePort: '远程端口须在 1–65535 之间',
+  toastPortConflict: '端口 {{port}} 已被其他进程占用：{{error}}',
+  badgePortConflict: '端口冲突',
+  badgePortConflictTooltip: '该规则已启用但未在监听 —— {{error}}',
 
   filterAllRules: '所有规则',
   filterPort: '端口 {{port}}',

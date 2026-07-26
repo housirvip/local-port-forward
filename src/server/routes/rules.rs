@@ -12,6 +12,22 @@ use tokio::net::TcpListener;
 use crate::models::Rule;
 use crate::server::AppState;
 
+#[derive(Debug, serde::Serialize)]
+pub struct RuleView {
+    #[serde(flatten)]
+    pub rule: Rule,
+    pub bind_error: Option<String>,
+}
+
+fn to_view(state: &AppState, rule: Rule) -> RuleView {
+    let bind_error = if rule.enabled {
+        state.manager.bind_error(rule.local_port)
+    } else {
+        None
+    };
+    RuleView { rule, bind_error }
+}
+
 #[derive(Debug, Deserialize)]
 pub struct RuleInput {
     pub name:        Option<String>,
@@ -48,7 +64,7 @@ pub async fn list(State(state): State<AppState>) -> impl IntoResponse {
         .fetch_all(&state.db)
         .await
     {
-        Ok(rules) => Json(rules).into_response(),
+        Ok(rules) => Json(rules.into_iter().map(|r| to_view(&state, r)).collect::<Vec<_>>()).into_response(),
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(json!({"error": e.to_string()})),
@@ -114,7 +130,7 @@ pub async fn create(
                     tracing::warn!("failed to start listener: {e}");
                 }
             }
-            (StatusCode::CREATED, Json(rule)).into_response()
+            (StatusCode::CREATED, Json(to_view(&state, rule))).into_response()
         }
         Err(e) => {
             let msg = e.to_string();
@@ -179,6 +195,12 @@ pub async fn update(
 
     match result {
         Ok(Some(rule)) => {
+            if existing.local_port != rule.local_port {
+                // Port changed: the old port's listener is unrelated to the new
+                // one restart()/stop() below manage, so it must be stopped explicitly
+                // or it keeps running and silently forwarding to the stale target.
+                state.manager.stop(existing.local_port).await.ok();
+            }
             if rule.enabled {
                 if let Err(e) = state.manager.restart(rule.clone()).await {
                     let msg = e.to_string();
@@ -194,7 +216,7 @@ pub async fn update(
             } else {
                 state.manager.stop(rule.local_port).await.ok();
             }
-            Json(rule).into_response()
+            Json(to_view(&state, rule)).into_response()
         }
         Ok(None) => (StatusCode::NOT_FOUND, Json(json!({"error": "not found"}))).into_response(),
         Err(e) => {
@@ -273,5 +295,5 @@ pub async fn toggle(
         state.manager.stop(updated.local_port).await.ok();
     }
 
-    Json(updated).into_response()
+    Json(to_view(&state, updated)).into_response()
 }

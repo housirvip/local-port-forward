@@ -12,6 +12,7 @@ export interface Rule {
   log_body: boolean
   created_at: string
   updated_at: string
+  bind_error: string | null
 }
 
 export interface RequestLog {
@@ -52,14 +53,14 @@ export const rulesApi = {
   list: (): Promise<Rule[]> =>
     fetch(`${BASE}/rules`).then(r => handleResponse<Rule[]>(r)),
 
-  create: (data: Omit<Rule, 'id' | 'created_at' | 'updated_at'>): Promise<Rule> =>
+  create: (data: Omit<Rule, 'id' | 'created_at' | 'updated_at' | 'bind_error'>): Promise<Rule> =>
     fetch(`${BASE}/rules`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     }).then(r => handleResponse<Rule>(r)),
 
-  update: (id: number, data: Partial<Omit<Rule, 'id' | 'created_at' | 'updated_at'>>): Promise<Rule> =>
+  update: (id: number, data: Partial<Omit<Rule, 'id' | 'created_at' | 'updated_at' | 'bind_error'>>): Promise<Rule> =>
     fetch(`${BASE}/rules/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },

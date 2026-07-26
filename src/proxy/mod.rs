@@ -3,7 +3,8 @@ pub mod sniffer;
 pub mod tcp;
 
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
+use std::sync::Mutex as StdMutex;
 use std::time::Instant;
 
 use anyhow::{anyhow, Result};
@@ -22,16 +23,18 @@ struct ListenerHandle {
 }
 
 pub struct Manager {
-    db:        SqlitePool,
-    listeners: Arc<Mutex<HashMap<i32, ListenerHandle>>>,
-    pub log_tx: broadcast::Sender<RequestLog>,
+    db:          SqlitePool,
+    listeners:   Arc<StdMutex<HashMap<i32, ListenerHandle>>>,
+    bind_errors: Arc<parking_lot::Mutex<HashMap<i32, String>>>,
+    pub log_tx:  broadcast::Sender<RequestLog>,
 }
 
 impl Manager {
     pub fn new(db: SqlitePool, log_tx: broadcast::Sender<RequestLog>) -> Self {
         Manager {
             db,
-            listeners: Arc::new(Mutex::new(HashMap::new())),
+            listeners: Arc::new(StdMutex::new(HashMap::new())),
+            bind_errors: Arc::new(parking_lot::Mutex::new(HashMap::new())),
             log_tx,
         }
     }
@@ -53,9 +56,15 @@ impl Manager {
     /// Bind a TCP listener on rule.local_port and spawn an accept loop.
     pub async fn start(&self, rule: Rule) -> Result<()> {
         let addr = format!("0.0.0.0:{}", rule.local_port);
-        let listener = TcpListener::bind(&addr).await.map_err(|e| {
-            anyhow!("bind {addr}: {e}")
-        })?;
+        let local_port = rule.local_port;
+        let listener = match TcpListener::bind(&addr).await {
+            Ok(l) => l,
+            Err(e) => {
+                let err = anyhow!("bind {addr}: {e}");
+                self.bind_errors.lock().insert(local_port, err.to_string());
+                return Err(err);
+            }
+        };
         self.start_with_listener(rule, listener).await
     }
 
@@ -70,6 +79,7 @@ impl Manager {
             }
             map.insert(rule.local_port, ListenerHandle { cancel: cancel.clone() });
         }
+        self.bind_errors.lock().remove(&rule.local_port);
 
         let db = self.db.clone();
         let log_tx = self.log_tx.clone();
@@ -83,6 +93,7 @@ impl Manager {
         if let Some(handle) = map.remove(&local_port) {
             handle.cancel.cancel();
         }
+        self.bind_errors.lock().remove(&local_port);
         Ok(())
     }
 
@@ -98,6 +109,11 @@ impl Manager {
         for (_, handle) in map.drain() {
             handle.cancel.cancel();
         }
+    }
+
+    /// Return the last bind error recorded for local_port, if any.
+    pub fn bind_error(&self, local_port: i32) -> Option<String> {
+        self.bind_errors.lock().get(&local_port).cloned()
     }
 }
 

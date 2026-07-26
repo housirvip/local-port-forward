@@ -56,6 +56,9 @@ const en = {
   errLocalPort: 'Local port must be 1–65535',
   errRemoteHost: 'Remote host is required',
   errRemotePort: 'Remote port must be 1–65535',
+  toastPortConflict: 'Port {{port}} is already in use by another process: {{error}}',
+  badgePortConflict: 'Port conflict',
+  badgePortConflictTooltip: 'This rule is enabled but not listening — {{error}}',
 
   // LogsPage — filter bar
   filterAllRules: 'All rules',

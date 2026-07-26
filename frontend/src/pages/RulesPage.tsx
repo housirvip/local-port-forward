@@ -12,10 +12,10 @@ import {
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
 } from '@/components/ui/dialog'
-import { Plus, Pencil, Trash2, ArrowRight } from 'lucide-react'
+import { Plus, Pencil, Trash2, ArrowRight, AlertTriangle } from 'lucide-react'
 import { toast } from 'sonner'
 
-const emptyForm = (): Omit<Rule, 'id' | 'created_at' | 'updated_at'> => ({
+const emptyForm = (): Omit<Rule, 'id' | 'created_at' | 'updated_at' | 'bind_error'> => ({
   name: '',
   local_port: 3000,
   remote_host: '',
@@ -124,6 +124,9 @@ export default function RulesPage() {
     try {
       const updated = await rulesApi.toggle(rule.id)
       setRules(rs => rs.map(r => r.id === updated.id ? updated : r))
+      if (updated.enabled && updated.bind_error) {
+        toast.error(t('toastPortConflict', { port: updated.local_port, error: updated.bind_error }))
+      }
     } catch (e: unknown) {
       // Revert
       setRules(rs => rs.map(r => r.id === rule.id ? rule : r))
@@ -239,7 +242,17 @@ export default function RulesPage() {
                     </Badge>
                   </td>
                   <td className="px-4 py-3">
-                    <Switch checked={rule.enabled} onCheckedChange={() => handleToggle(rule)} />
+                    <div className="flex items-center gap-2">
+                      <Switch checked={rule.enabled} onCheckedChange={() => handleToggle(rule)} />
+                      {rule.enabled && rule.bind_error && (
+                        <span title={t('badgePortConflictTooltip', { error: rule.bind_error })}>
+                          <Badge variant="red" className="inline-flex items-center gap-1">
+                            <AlertTriangle className="h-3 w-3" />
+                            {t('badgePortConflict')}
+                          </Badge>
+                        </span>
+                      )}
+                    </div>
                   </td>
                   <td className="px-4 py-3 text-zinc-500 text-xs">
                     {rule.log_enabled ? (rule.log_body ? t('logStatusBody') : t('logStatusHeaders')) : t('logStatusOff')}
