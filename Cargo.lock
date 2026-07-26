@@ -2696,7 +2696,7 @@ dependencies = [
 
 [[package]]
 name = "portforward"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "axum",
@@ -2722,7 +2722,7 @@ dependencies = [
 
 [[package]]
 name = "portforward-desktop"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "axum",
